@@ -1,0 +1,367 @@
+\documentclass[conference]{IEEEtran}
+
+\usepackage{amsmath,amssymb,amsfonts}
+\usepackage{graphicx}
+\usepackage{textcomp}
+\usepackage{xcolor}
+\usepackage{booktabs}
+\usepackage{array}
+\usepackage{listings}
+\usepackage{url}
+\usepackage[hidelinks]{hyperref}
+\usepackage{cite}
+
+% Appendix'teki onemli linkleri vurgulamak icin renk tanimlari
+\definecolor{linkblue}{RGB}{0,80,200}
+\definecolor{linkgreen}{RGB}{0,140,70}
+
+% Code Listing Style
+\lstset{
+	language=Python,
+	basicstyle=\ttfamily\footnotesize,
+	keywordstyle=\color{blue}\bfseries,
+	commentstyle=\color{gray}\itshape,
+	stringstyle=\color{red},
+	numbers=left,
+	numberstyle=\tiny\color{gray},
+	numbersep=5pt,
+	frame=single,
+	breaklines=true,
+	captionpos=b,
+	tabsize=4
+}
+
+\def\BibTeX{{\rm B\kern-.05em{\sc i\kern-.025em b}\kern-.08em
+		T\kern-.1667em\lower.7ex\hbox{E}\kern-.125emX}}
+
+\begin{document}
+	
+	\title{Student Dropout Prediction using Data Mining Techniques\\
+		{\footnotesize BIL 476 / 573 --- Data Mining Course Project, Summer 2026\\
+			TOBB University of Economics and Technology}
+	}
+	
+	\author{\IEEEauthorblockN{Remzi Mert Tehneldere}
+		\IEEEauthorblockA{\textit{TOBB University of Economics and Technology}\\
+			Ankara, Turkey \\
+			Student ID: 211401022 \\
+			rtehneldere@etu.edu.tr}
+	}
+	
+	\maketitle
+	
+	\begin{abstract}
+		Student dropout is a persistent problem in higher education that affects both institutional resource planning and student welfare. Identifying at-risk students early allows timely academic and financial support. This study applies data mining classification techniques to the UCI Predict Students' Dropout and Academic Success dataset, which contains 4,424 student records described by 36 demographic, socio-economic and academic features. The originally three-class target (Dropout, Enrolled, Graduate) is reduced to a binary problem (Dropout versus Graduate) by removing the unresolved Enrolled class, yielding 3,630 records. After exploratory data analysis, one-hot encoding, standardization and a stratified 80/20 split, four classifiers from two different families are trained and compared: Logistic Regression, Decision Tree, Random Forest and XGBoost. Class imbalance is handled through balanced class weighting rather than synthetic oversampling. Models are evaluated with accuracy, precision, recall, F1-score, ROC-AUC and PR-AUC, and their generalization is assessed through a train-test gap analysis and five-fold cross-validation. Random Forest achieves the highest accuracy (0.935) and F1-score (0.916), while Logistic Regression attains the strongest ranking quality (ROC-AUC 0.976, PR-AUC 0.974) with almost no overfitting. Feature importance analysis identifies the number of second-semester approved curricular units and grades as the dominant predictors of dropout. The results confirm that academic performance indicators available early in the program are highly predictive of dropout risk.
+	\end{abstract}
+	
+	\begin{IEEEkeywords}
+		data mining, classification, student dropout, ensemble learning, class imbalance
+	\end{IEEEkeywords}
+	
+	\section{Introduction}
+	\label{sec:introduction}
+	
+	Academic dropout is one of the most important challenges faced by higher education institutions. High dropout rates reduce the efficiency of educational resources, lower institutional reputation, and, more importantly, represent a personal and financial setback for the affected students. When a student leaves a program before completion, the invested time, tuition and public funding yield no degree, and the student may carry both financial debt and a sense of failure. Consequently, the ability to predict which students are at risk of leaving before completion has significant practical value: it enables institutions to direct academic counselling, scholarship support and mentoring toward the students who need them most, ideally before the point at which withdrawal becomes irreversible.
+	
+	Data mining provides a natural framework for this problem. Universities routinely collect rich information at the moment of enrolment, including demographic attributes, socio-economic indicators and prior academic records, together with performance data from the first academic terms. These records encode subtle patterns that are difficult for a human advisor to detect across thousands of students but that a classification algorithm can learn from historical outcomes. By training such an algorithm on students whose final status is already known, it becomes possible to estimate the dropout risk of current students and to rank them for targeted intervention.
+	
+	This project addresses the following research question: \textit{using demographic, socio-economic and academic information, how accurately can a student's dropout risk be predicted, and which classification algorithm performs best for this task?} To answer it, the problem is framed as a binary classification task and four algorithms drawn from two model families, a linear model and three tree-based models, are trained and rigorously compared on a real-world dataset. Beyond simply reporting accuracy, the study examines how the models trade off precision against recall, how well they generalize beyond the training data, and which features drive their predictions.
+	
+	The remainder of this paper is organized as follows. Section~\ref{sec:related_work} reviews related work on educational data mining and dropout prediction. Section~\ref{sec:dataset} describes the dataset and its characteristics. Section~\ref{sec:methodology} details the preprocessing pipeline and the classification methodology. Section~\ref{sec:results} presents the experimental results, and Section~\ref{sec:discussion} discusses their implications, limitations and ethical considerations. Section~\ref{sec:conclusion} concludes the paper and outlines directions for future work.
+	
+	\section{Related Work}
+	\label{sec:related_work}
+	
+	Educational data mining has become an active research area focused on extracting actionable knowledge from student data. Romero and Ventura~\cite{b1} provide a broad survey of the field, showing that classification, clustering and association rule mining have all been applied to problems such as performance prediction, dropout detection and course recommendation. Their survey highlights that predictive modelling of student outcomes is among the most studied and most impactful applications of these techniques.
+	
+	The dataset used in this study was introduced by Martins et al.~\cite{b2}, who framed early prediction of student success as a three-class problem and applied several classifiers to identify students at risk. Realinho et al.~\cite{b3} later published the dataset publicly and described its construction from multiple institutional databases, establishing it as a realistic benchmark for dropout prediction. Their work motivates the binary reformulation adopted here: because the Enrolled class represents students whose outcome is still undecided, removing it yields a cleaner and more actionable Dropout versus Graduate decision.
+	
+	A recurring theme in the classification literature is that ensemble methods often outperform single models on tabular data. Breiman~\cite{b4} introduced Random Forest, an ensemble of decision trees that reduces variance through bagging and provides useful feature importance estimates. Chen and Guestrin~\cite{b5} proposed XGBoost, a scalable gradient-boosting system that repeatedly fits trees to the residual errors of previous trees and has become a standard tool for tabular prediction tasks. In contrast, simpler linear models such as Logistic Regression remain strong and highly interpretable baselines, particularly when features are well scaled; they are often competitive with more complex models while being far easier to explain to non-technical stakeholders such as academic advisors.
+	
+	This project differs from prior studies in two respects. First, it explicitly compares models from two different families, a linear model and three tree-based models, rather than restricting the comparison to a single family. Second, in addition to standard accuracy-oriented metrics, it reports PR-AUC and an explicit train-test gap analysis, allowing generalization and imbalance-robustness to be examined directly rather than inferred from accuracy alone. This emphasis on generalization is important in an educational setting, where a model that merely memorizes historical data would fail on future cohorts.
+	
+	\section{Dataset Description}
+	\label{sec:dataset}
+	
+	\subsection{Data Source}
+	The study uses the Predict Students' Dropout and Academic Success dataset from the UCI Machine Learning Repository~\cite{b3}, available at \url{https://archive.ics.uci.edu/dataset/697}. The dataset was created to support the reduction of academic dropout and failure in higher education by identifying at-risk students at an early stage. It is well suited for this project because it addresses a genuine real-world classification problem, contains a large number of records with mixed attribute types, and includes exactly the demographic, socio-economic and academic information required to answer the research question. The data were collected from students enrolled in a variety of undergraduate degrees, which makes the learned patterns broadly representative of a typical higher-education institution.
+	
+	\subsection{Data Characteristics}
+	The dataset contains 4,424 student records described by 36 independent features and one target variable. The features cover three categories: demographic attributes (for example age at enrolment, gender, marital status and nationality), socio-economic indicators (for example parental qualifications and occupations, scholarship status, debtor status and tuition payment status), and academic information (for example admission grade, previous qualification grade and detailed curricular-unit statistics for the first two semesters). Table~\ref{tab:dataset} summarizes the dataset after the binary reformulation described below.
+	
+	\begin{table}[htbp]
+		\caption{Dataset Summary (After Binary Reformulation)}
+		\begin{center}
+			\begin{tabular}{|l|l|}
+				\hline
+				\textbf{Property} & \textbf{Value} \\
+				\hline
+				Number of Records & 3,630 (after removing Enrolled) \\
+				\hline
+				Number of Attributes & 36 features + 1 target \\
+				\hline
+				Attribute Types & Nominal, Ordinal, Numeric \\
+				\hline
+				Target Variable & Target (Dropout / Graduate) \\
+				\hline
+				Missing Values & None \\
+				\hline
+				Class Distribution & 60.9\% Graduate / 39.1\% Dropout \\
+				\hline
+				Source & UCI ML Repository (ID 697) \\
+				\hline
+			\end{tabular}
+			\label{tab:dataset}
+		\end{center}
+	\end{table}
+	
+	The original target has three classes: Dropout, Enrolled and Graduate. The Enrolled class corresponds to students whose final outcome was unknown at the time of data collection. Because the objective is to distinguish clearly between dropout and successful completion, the Enrolled records are removed, transforming the task into a binary classification problem with 3,630 records, of which 2,209 (60.9\%) are Graduate and 1,421 (39.1\%) are Dropout. The resulting class distribution is shown in Fig.~\ref{fig:dist}. A missing-value analysis confirmed programmatically that the dataset contains no missing entries, which is consistent with the rigorous preprocessing reported by the dataset authors. An outlier analysis using the interquartile range method showed that several curricular-unit and grade features contain statistically extreme values; however, these values are meaningful (a grade of zero typically corresponds to a student who stopped attending) and were retained, especially since the tree-based models used here are robust to outliers. Fig.~\ref{fig:corr} shows the ten features most strongly correlated with the target; the number of approved curricular units in the second and first semesters exhibits the strongest negative correlation with dropout, providing an early indication of which signals the models are likely to exploit.
+	
+	\begin{figure}[htbp]
+		\centerline{\includegraphics[width=0.78\columnwidth]{figures/01_class_distribution.png}}
+		\caption{Binary target class distribution after removing the Enrolled class (0 = Graduate, 1 = Dropout).}
+		\label{fig:dist}
+	\end{figure}
+	
+	\begin{figure}[htbp]
+		\centerline{\includegraphics[width=0.92\columnwidth]{figures/03_top_correlations_target.png}}
+		\caption{Ten features with the highest absolute Pearson correlation with the dropout target.}
+		\label{fig:corr}
+	\end{figure}
+	
+	\subsection{Ethical Considerations}
+	The dataset is fully anonymized and contains no personally identifying information, so individual students cannot be re-identified, and no private or confidential data were shared with any external tool during this project. Nevertheless, dropout prediction is an ethically sensitive application. A predictive model could reinforce existing biases if socio-economic attributes are used to label students as high-risk, and an incorrect prediction may lead to stigmatization or misallocated support. For these reasons the model in this study is intended only as a decision-support aid to help direct assistance, not as an automated mechanism for consequential decisions about individual students, and its predictions should always be reviewed by human advisors before any action is taken.
+	
+	\section{Methodology}
+	\label{sec:methodology}
+	
+	\subsection{Data Preprocessing}
+	The preprocessing pipeline was designed to be reproducible and to avoid data leakage. The 36 features were first separated into 18 continuous numeric features (grades, curricular-unit counts and macro-economic indicators) and 18 categorical features (coded attributes such as course, marital status and parental occupation), because the two groups require different transformations and treating category codes as numbers would impose a false ordering on them.
+	\begin{itemize}
+		\item \textbf{Missing value handling:} No imputation was required, as the dataset contains no missing values (verified programmatically).
+		\item \textbf{Outlier treatment:} Extreme values were retained rather than removed, since they are meaningful and the tree-based models are robust to them.
+		\item \textbf{Encoding categorical variables:} One-hot encoding was applied to the categorical features, expanding the design matrix to 234 features and avoiding a spurious ordinal relationship between category codes.
+		\item \textbf{Standardization:} Numeric features were standardized to zero mean and unit variance with a StandardScaler. The scaler was fitted only on the training partition and then applied to the test partition, so no test information leaked into training.
+	\end{itemize}
+	The data were divided into an 80\% training set and a 20\% test set using stratified sampling, which preserves the 39.1\% dropout proportion in both partitions and ensures that the test set is representative.
+	
+	\subsection{Handling Class Imbalance}
+	The classes are moderately imbalanced, with a Graduate-to-Dropout ratio of approximately 1.55 to 1. Rather than generating synthetic samples with a technique such as SMOTE, this study addresses imbalance through balanced class weighting: during training, errors on the minority (Dropout) class are penalized in inverse proportion to class frequency. This choice avoids introducing artificial data, is supported natively by all four models, and therefore allows a single consistent strategy throughout. For the gradient-boosting model the equivalent effect is obtained through balanced sample weights. Because the imbalance is only moderate, this lightweight approach is preferable to oversampling, which would enlarge the dataset and risk overfitting to synthetic points.
+	
+	\subsection{Algorithm Selection and Description}
+	Four classifiers from two families were compared, satisfying and exceeding the requirement to apply and compare multiple approaches. \textbf{Logistic Regression} is a linear model that estimates dropout probability from a weighted combination of the features; it is fast, interpretable and serves as a strong baseline on the standardized inputs used here. \textbf{Decision Tree} is a single tree that is easy to interpret but prone to overfitting, and therefore acts as a tree-based baseline. \textbf{Random Forest}~\cite{b4} is a bagging ensemble that averages many decorrelated trees to reduce variance and provides feature importance estimates. \textbf{XGBoost}~\cite{b5} is a boosting ensemble that fits trees sequentially to correct previous errors and typically achieves state-of-the-art performance on tabular data. Together these models span the linear/nonlinear and single/ensemble dimensions, enabling a meaningful comparison of trade-offs between accuracy, interpretability and generalization.
+	
+	\subsection{Experimental Setup}
+	\begin{itemize}
+		\item \textbf{Train/test split:} 80\% training, 20\% test, stratified by the target.
+		\item \textbf{Hyperparameters:} The Random Forest model was tuned with a grid search over the number of estimators, maximum depth and minimum samples per split, using five-fold stratified cross-validation with the F1-score as the selection criterion. The other models used well-justified default configurations.
+		\item \textbf{Software environment:} Python 3, with scikit-learn~\cite{b6}, XGBoost, pandas, numpy, matplotlib and seaborn.
+		\item \textbf{Metrics:} accuracy, precision, recall, F1-score, ROC-AUC and PR-AUC, with precision, recall and F1 reported for the Dropout (positive) class.
+	\end{itemize}
+	
+	\subsection{Reproducibility and Verification}
+	All experiments use a single fixed random seed defined in one configuration module, so repeated runs produce identical train/test splits and identical results. The complete code, data reference and instructions are provided in the public repository listed in Appendix~\ref{app:code}. The author executed every script, verified each reported number against the program's console output and saved CSV tables, and confirmed the confusion-matrix counts by hand; the author is responsible for every line of code and every reported result.
+	
+	\section{Results}
+	\label{sec:results}
+	
+	\subsection{Evaluation Metrics}
+	Because the dataset is imbalanced, accuracy alone can be misleading, so several complementary metrics are reported. Accuracy measures overall correctness; precision and recall for the Dropout class quantify, respectively, how many flagged students truly drop out and how many actual dropouts are caught; the F1-score is their harmonic mean. ROC-AUC measures threshold-independent ranking quality, and PR-AUC focuses specifically on the minority (Dropout) class, giving a more informative view under imbalance. In a support context, recall on the Dropout class is especially important, because failing to identify a student who will drop out (a false negative) means a missed opportunity to intervene.
+	
+	\subsection{Results Summary}
+	Table~\ref{tab:results} summarizes the performance of the four models on the test set, sorted by ROC-AUC. All models substantially outperform the random baseline, confirming that dropout is highly predictable from the available features.
+	
+	\begin{table}[htbp]
+		\caption{Model Performance on the Test Set}
+		\begin{center}
+			\setlength{\tabcolsep}{3pt}
+			\begin{tabular}{|l|c|c|c|c|c|c|}
+				\hline
+				\textbf{Model} & \textbf{Acc.} & \textbf{Prec.} & \textbf{Rec.} & \textbf{F1} & \textbf{ROC} & \textbf{PR} \\
+				\hline
+				Logistic Regression & 0.920 & 0.869 & \textbf{0.937} & 0.902 & \textbf{0.976} & \textbf{0.974} \\
+				\hline
+				Random Forest & \textbf{0.935} & \textbf{0.931} & 0.901 & \textbf{0.916} & 0.972 & 0.969 \\
+				\hline
+				XGBoost & 0.913 & 0.875 & 0.909 & 0.891 & 0.972 & 0.970 \\
+				\hline
+				Decision Tree & 0.897 & 0.869 & 0.866 & 0.868 & 0.937 & 0.920 \\
+				\hline
+			\end{tabular}
+			\label{tab:results}
+		\end{center}
+	\end{table}
+	
+	Random Forest attains the highest accuracy (0.935) and F1-score (0.916), driven by the best precision (0.931). Logistic Regression achieves the highest ROC-AUC (0.976), PR-AUC (0.974) and dropout recall (0.937), meaning it misses the fewest at-risk students. XGBoost performs comparably to Random Forest in ranking quality, while the single Decision Tree is the weakest model on every metric, illustrating the benefit of moving beyond a single tree. Fig.~\ref{fig:bar} visualizes these metrics side by side.
+	
+	\begin{figure}[htbp]
+		\centerline{\includegraphics[width=\columnwidth]{figures/model_comparison_bar.png}}
+		\caption{Side-by-side comparison of all evaluation metrics for the four models. Full quantity names are used on the axes.}
+		\label{fig:bar}
+	\end{figure}
+	
+	\subsection{Visualizations}
+	Fig.~\ref{fig:roc} shows the ROC curves and Fig.~\ref{fig:pr} the precision-recall curves for all four classifiers. Because the dataset is imbalanced, the precision-recall curves provide a more informative view of minority-class performance; they confirm that the linear model and the two tree ensembles are closely matched and clearly superior to the single tree. Fig.~\ref{fig:cm} presents the confusion matrix of the best-accuracy model, Random Forest: of 726 test students, only 28 dropouts were missed (false negatives) and 19 graduates were incorrectly flagged (false positives), which is a strong result for a support-oriented application.
+	
+	\begin{figure}[htbp]
+		\centerline{\includegraphics[width=0.74\columnwidth]{figures/roc_curves_comparison.png}}
+		\caption{ROC curves for the four classifiers on the test set.}
+		\label{fig:roc}
+	\end{figure}
+	
+	\begin{figure}[htbp]
+		\centerline{\includegraphics[width=0.74\columnwidth]{figures/pr_curves_comparison.png}}
+		\caption{Precision-recall curves for the four classifiers on the test set.}
+		\label{fig:pr}
+	\end{figure}
+	
+	\begin{figure}[htbp]
+		\centerline{\includegraphics[width=0.72\columnwidth]{figures/cm_random_forest.png}}
+		\caption{Confusion matrix of the Random Forest model on the test set.}
+		\label{fig:cm}
+	\end{figure}
+	
+	To assess generalization beyond a single split, Table~\ref{tab:overfit} reports the train-test accuracy gap and the five-fold cross-validated F1-score. Logistic Regression shows an almost zero gap, indicating essentially no overfitting, whereas the tree ensembles fit the training data more closely. The cross-validation scores are stable across folds, with small standard deviations, confirming that the reported performance is not an artefact of a lucky split. Fig.~\ref{fig:fi} shows the fifteen most important features according to the Random Forest model; second- and first-semester approved curricular units and grades dominate the ranking, followed by tuition-payment status.
+	
+	\begin{table}[htbp]
+		\caption{Overfitting and Cross-Validation Analysis}
+		\begin{center}
+			\setlength{\tabcolsep}{4pt}
+			\begin{tabular}{|l|c|c|c|c|}
+				\hline
+				\textbf{Model} & \textbf{Train} & \textbf{Test} & \textbf{Gap} & \textbf{CV F1 (mean$\pm$std)} \\
+				\hline
+				Logistic Regression & 0.919 & 0.920 & $-0.001$ & $0.877\pm0.012$ \\
+				\hline
+				Decision Tree & 0.928 & 0.897 & $0.032$ & $0.839\pm0.018$ \\
+				\hline
+				Random Forest & 0.985 & 0.935 & $0.050$ & $0.877\pm0.017$ \\
+				\hline
+				XGBoost & 0.990 & 0.913 & $0.077$ & $0.882\pm0.013$ \\
+				\hline
+			\end{tabular}
+			\label{tab:overfit}
+		\end{center}
+	\end{table}
+	
+	\begin{figure}[htbp]
+		\centerline{\includegraphics[width=\columnwidth]{figures/feature_importance_random_forest.png}}
+		\caption{Fifteen most important features according to the Random Forest model.}
+		\label{fig:fi}
+	\end{figure}
+	
+	\subsection{Comparison of Approaches}
+	The comparison reveals a clear trade-off. Random Forest is best when overall accuracy and precision matter most, whereas Logistic Regression is best for ranking quality and for catching as many at-risk students as possible (highest recall), while also generalizing better. The single Decision Tree is dominated by all other models on every metric. The overfitting analysis in Table~\ref{tab:overfit} explains part of this pattern: the tree ensembles reach very high training accuracy (0.985 and 0.990) but lower test accuracy, indicating partial memorization, whereas the lower-capacity linear model generalizes almost perfectly on this dataset. The closeness of the three strongest models on the precision-recall curves further suggests that, for this dataset, the choice among them can be guided by secondary concerns such as interpretability and training cost rather than by raw predictive power alone.
+	
+	\section{Discussion}
+	\label{sec:discussion}
+	
+	The results support a nuanced answer to the research question. If overall accuracy and precision are the priority, Random Forest is the best model, correctly classifying 93.5\% of students and rarely mislabelling graduates. If the priority is ranking quality and catching as many at-risk students as possible, Logistic Regression is preferable, with the highest ROC-AUC, PR-AUC and dropout recall and essentially no overfitting. In a real support scenario, where the cost of missing a genuine dropout is high, the higher recall of the linear model is a meaningful advantage. The best model therefore depends on the operational objective rather than on a single headline metric, and a responsible deployment would state that objective explicitly before selecting a model.
+	
+	A notable and somewhat surprising finding is the strength of the simple linear model. Despite the availability of two powerful tree ensembles, Logistic Regression matched or exceeded them on the ranking metrics while generalizing better. The train-test gap analysis explains why: Random Forest and XGBoost reach training accuracies of 0.985 and 0.990 respectively, well above their test accuracies, indicating that they partially memorize the training data, whereas the linear model, with its lower capacity, is less prone to this. This is a useful reminder that model complexity does not guarantee better generalization, particularly on well-structured tabular data with informative features.
+	
+	The feature importance and correlation analyses converge on a clear, interpretable conclusion: dropout is driven primarily by early academic performance. Students who enrol in and pass fewer curricular units, and who obtain lower grades in the first two semesters, are far more likely to drop out. Socio-economic factors such as tuition-payment status and scholarship holding also contribute, but to a lesser degree. This aligns with intuition and with prior findings, and it has a direct practical implication: institutions can build an effective early-warning system using a small number of first-year performance indicators, without needing sensitive demographic attributes as the primary signal.
+	
+	\textbf{Limitations.} Several limitations should be acknowledged. First, the dataset originates from a single institution, so the learned patterns may not transfer directly to other universities or educational systems. Second, some of the most predictive features are only available after the first two semesters, which limits how early a confident prediction can be made; a truly early prediction using only enrolment-time data would likely be less accurate. Third, the binary reformulation excludes the Enrolled students, so the model does not address the practically important case of students whose outcome is still undecided. Finally, the study evaluates a fixed set of hyperparameters and four algorithms, and other configurations or models could yield different trade-offs.
+	
+	\textbf{Effect of data quality and imbalance.} The absence of missing values simplified preprocessing and removed a common source of error. The moderate class imbalance was handled effectively through balanced class weighting, as evidenced by the high recall and PR-AUC for the minority class, and the retained outliers did not harm the tree-based models. Overall, the high data quality of this dataset contributes to the strong performance observed across all models.
+	
+	\textbf{Ethical implications.} As noted in Section~\ref{sec:dataset}, the model should be used only to support human advisors, not to make automated decisions. Care must be taken to ensure that flagging a student as high-risk leads to additional support rather than reduced expectations or stigmatization, and that socio-economic attributes are not used in a way that entrenches disadvantage. Transparency about how risk scores are computed and used is essential for maintaining student trust.
+	
+	\section{Conclusion and Future Work}
+	\label{sec:conclusion}
+	
+	This paper presented a complete data mining pipeline for predicting student dropout from demographic, socio-economic and academic data. The three-class problem was reduced to a binary Dropout-versus-Graduate task, and four classifiers from two model families were trained and compared using a reproducible, leakage-free methodology. Random Forest achieved the highest accuracy (0.935) and F1-score (0.916), while Logistic Regression achieved the best ranking quality (ROC-AUC 0.976, PR-AUC 0.974) and the best generalization. Feature importance analysis showed that second- and first-semester academic performance are the dominant predictors of dropout.
+	
+	The main takeaway is that model selection must be guided by the operational goal: accuracy, recall and generalization can point to different models, and reporting a range of metrics together with an overfitting analysis gives a more honest picture than accuracy alone. Given more time, an early-prediction variant restricted to enrolment-time features would be explored to quantify how early reliable predictions can be made. Other concrete directions for future work include treating the Enrolled students as a separate prediction target or adopting a survival-analysis formulation, and incorporating per-prediction explainability tools such as feature attribution to help advisors understand and trust each dropout-risk flag. Together, these extensions would move the system closer to a deployable early-warning tool.
+	
+	\section*{AI Tool Use and Originality Declaration}
+	\label{sec:ai_declaration}
+	
+	AI-assisted tools were used only for limited support, such as concept clarification, code debugging, code review, grammar improvement, and LaTeX formatting. The project idea, methodology choices, experiments, analysis, interpretation of results, and final report wording were reviewed, verified, and finalized by the student. The student accepts full responsibility for the accuracy, originality, reproducibility, and integrity of the submitted work. The specific AI tool used was Claude (Anthropic). AI use per project stage is disclosed in Table~\ref{tab:ai_use} using the 0--6 scale.
+	
+	\begin{table}[htbp]
+		\caption{AI Use Disclosure Summary}
+		\label{tab:ai_use}
+		\centering
+		\footnotesize
+		\begin{tabular}{|p{0.35\linewidth}|c|p{0.38\linewidth}|}
+			\hline
+			\textbf{Project Stage} & \textbf{Level} & \textbf{Brief Description} \\
+			\hline
+			Conceptualization and idea generation & 1 & Problem, dataset and research question chosen by the student; AI used only to sanity-check phrasing. \\
+			\hline
+			Literature search and synthesis & 2 & Student selected and read all references; AI helped locate candidates, verified against originals. \\
+			\hline
+			Methodology, coding, and analysis & 3 & Student designed the pipeline and decisions; AI gave regular support for coding and debugging; all code run and verified by the student. \\
+			\hline
+			Writing, editing, and LaTeX formatting & 3 & Structure, arguments and results are the student's; AI assisted with language polishing and formatting. \\
+			\hline
+			Interpretation, discussion, and conclusion & 2 & Interpretation and conclusions are the student's own; AI used only to improve clarity of expression. \\
+			\hline
+		\end{tabular}
+	\end{table}
+	
+	AI-generated references, explanations, code, figures, and numerical results were independently checked before inclusion. No AI tool is listed as an author or as a source of factual claims.
+	
+	\begin{thebibliography}{00}
+		
+		\bibitem{b1} C.~Romero and S.~Ventura, ``Educational data mining and learning analytics: An updated survey,'' \textit{Wiley Interdiscip. Rev. Data Min. Knowl. Discov.}, vol.~10, no.~3, e1355, 2020.
+		
+		\bibitem{b2} M.~V.~Martins, D.~Tolledo, J.~Machado, L.~M.~T.~Baptista, and V.~Realinho, ``Early prediction of student's performance in higher education: A case study,'' in \textit{Trends and Applications in Information Systems and Technologies (WorldCIST)}, Adv. Intell. Syst. Comput., vol.~1365, Springer, 2021, pp.~166--175.
+		
+		\bibitem{b3} V.~Realinho, J.~Machado, L.~M.~T.~Baptista, and M.~V.~Martins, ``Predict students' dropout and academic success dataset,'' UCI Machine Learning Repository, 2021. [Online]. Available: \url{https://archive.ics.uci.edu/dataset/697}
+		
+		\bibitem{b4} L.~Breiman, ``Random forests,'' \textit{Mach. Learn.}, vol.~45, no.~1, pp.~5--32, 2001.
+		
+		\bibitem{b5} T.~Chen and C.~Guestrin, ``XGBoost: A scalable tree boosting system,'' in \textit{Proc. 22nd ACM SIGKDD Int. Conf. Knowl. Discovery and Data Mining}, 2016, pp.~785--794.
+		
+		\bibitem{b6} F.~Pedregosa et al., ``Scikit-learn: Machine learning in Python,'' \textit{J. Mach. Learn. Res.}, vol.~12, pp.~2825--2830, 2011.
+		
+		\bibitem{b7} J.~Han, M.~Kamber, and J.~Pei, \textit{Data Mining: Concepts and Techniques}, 3rd~ed. Morgan Kaufmann, 2011.
+		
+	\end{thebibliography}
+	
+	\newpage	
+	\appendix
+	
+	\section{Code and Data Availability}
+	\label{app:code}
+	
+	\noindent\textbf{\textcolor{linkgreen}{Source Code (GitHub):}}\\
+	\textcolor{linkblue}{\url{https://github.com/rmtehneldere/student-dropout-prediction}}
+	
+	\vspace{4pt}
+	\noindent\textbf{\textcolor{linkgreen}{Dataset (UCI Repository):}}\\
+	\textcolor{linkblue}{\url{https://archive.ics.uci.edu/dataset/697}}
+	
+	\vspace{6pt}
+	\noindent The repository reproduces every result in this paper. It contains the full pipeline organized as four modules (configuration with a fixed random seed, preprocessing and EDA, model definitions, and evaluation) plus two runnable scripts, \texttt{01\_run\_preprocessing.py} and \texttt{02\_run\_modeling.py}. Running these two scripts regenerates all preprocessing outputs, the four trained models, every metric in Tables~\ref{tab:results} and~\ref{tab:overfit}, and all figures in this paper. Listing~\ref{lst:preprocess} shows a representative excerpt of the leakage-free preprocessing.
+	
+	\begin{lstlisting}[caption={Representative excerpt: stratified split with leakage-free scaling.}, label={lst:preprocess}]
+import pandas as pd
+from sklearn.model_selection import train_test_split
+from sklearn.preprocessing import StandardScaler
+
+# Load the binary dataset (Enrolled removed)
+df = pd.read_csv('data/processed_data.csv')
+X = df.drop('Target', axis=1)
+y = df['Target']
+
+# Stratified 80/20 split preserves class ratio
+X_train, X_test, y_train, y_test = train_test_split(
+    X, y, test_size=0.2, random_state=42,
+    stratify=y)
+
+# Fit scaler ONLY on training data (no leakage)
+scaler = StandardScaler()
+X_train[num_cols] = scaler.fit_transform(X_train[num_cols])
+X_test[num_cols]  = scaler.transform(X_test[num_cols])
+	\end{lstlisting}
+	
+	\section{Additional Material}
+	\label{app:additional}
+	
+	Supplementary material in the repository's \texttt{outputs/} directory includes the full descriptive-statistics table, the confusion matrices of all four models, feature-importance plots and tables for both ensemble models, the correlation heatmap, and the complete five-fold cross-validation results.
+	
+\end{document}
