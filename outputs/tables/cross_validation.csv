@@ -1,0 +1,5 @@
+Model,CV F1 (mean),CV F1 (std)
+Random Forest,0.8771,0.0172
+Logistic Regression,0.8768,0.0116
+XGBoost,0.8767,0.0121
+Decision Tree,0.8393,0.0179
